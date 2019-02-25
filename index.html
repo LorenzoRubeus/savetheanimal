@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Save The Animal</title>
+    <link rel="stylesheet" href="assets/css/style.css" />
+    <link
+      rel="icon"
+      href="assets/favicon2.png"
+      type="image/png"
+      sizes="16x16"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.15.1/dist/phaser-arcade-physics.min.js"></script>
+  </head>
+  <body>
+    <div id="overlay"></div>
+    <img id="imgName" src="assets/gameName.png" />
+    <div class="options" id="options">
+      <h1>Bindings</h1>
+      <br />
+      <table>
+        <tr>
+          <td><label class="bindingLabel">Rotate: </label></td>
+          <td>
+            <img class="imgBinding" src="assets/imgBindings/upKey.png" />
+          </td>
+        </tr>
+        <tr>
+          <td><label class="bindingLabel">Accelerate: </label></td>
+          <td>
+            <img class="imgBinding" src="assets/imgBindings/downKey.png" />
+          </td>
+        </tr>
+        <tr>
+          <td><label class="bindingLabel">Move Left: </label></td>
+          <td>
+            <img class="imgBinding" src="assets/imgBindings/leftKey.png" />
+          </td>
+        </tr>
+        <tr>
+          <td><label class="bindingLabel">Move Right: </label></td>
+          <td>
+            <img class="imgBinding" src="assets/imgBindings/rightKey.png" />
+          </td>
+        </tr>
+        <tr>
+          <td><label class="bindingLabel">Pause/Resume: </label></td>
+          <td>
+            <img class="imgBinding" src="assets/imgBindings/pKey.png" />
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <script type="module">
+      import GameOver from "./scenes/GameOver.js";
+
+      // ----- Configurations for Phaser and audio -----
+      var config = {
+        type: Phaser.AUTO,
+        width: 450,
+        height: 600,
+        physics: {
+          default: "arcade",
+          arcade: {
+            gravity: { y: 140 },
+            debug: false
+          }
+        },
+        scene: {
+          key: "gameScene",
+          preload: preload,
+          create: create,
+          update: update
+        },
+        fps: 30
+      };
+
+      var configAudio = {
+        mute: false,
+        volume: 0.04,
+        rate: 1,
+        detune: 0,
+        seek: 0,
+        loop: true,
+        delay: 0
+      };
+
+      var configAudioGameOver = {
+        mute: false,
+        volume: 0.07,
+        rate: 1,
+        detune: 0,
+        seek: 0,
+        loop: false,
+        delay: 0
+      };
+
+      // ----- Text Variables -----
+      var scoreText = 0;
+      var text;
+      var textPausedFirstLine;
+      var textPausedSecondLine;
+
+      // ----- Animals and Platform -----
+      var elephants;
+      var pandas;
+      var girafes;
+      var chickens;
+      var foxes;
+      var crocodiles;
+      var deers;
+      var platform;
+
+      // ----- Game variables -----
+      var playerRotation = true;
+      var acceleration = 0;
+      var cursors;
+      var randomAnimalNumber;
+      var nextRandomAnimalNumber;
+      var imageNextRandomAnimal;
+      var gamePaused = false;
+      var checkCollide = true;
+      var player = "";
+      var calledFrom = "";
+      var music;
+      var soundGameOver;
+
+      // ----- Initializing the game
+      var game = new Phaser.Game(config);
+
+      // ----- Adding the scene that will appear when the player loses -----
+      var sceneGameOver = new GameOver();
+      game.scene.add("sceneGameOver", sceneGameOver);
+
+      // ----- First function to loads all the assets
+      function preload() {
+        this.load.atlas("animals", "assets/asset.png", "assets/asset.json");
+        this.load.image("sky", "assets/sky2.png");
+        this.load.image("platform", "assets/platform.png");
+        this.load.image("neonSign", "assets/neon-sign2.png");
+        this.load.bitmapFont(
+          "fontNumbers",
+          "assets/fonts/fontYoster.png",
+          "assets/fonts/fontYoster.fnt"
+        );
+        this.load.bitmapFont(
+          "fontZig",
+          "assets/fonts/fontZig.png",
+          "assets/fonts/fontZig.fnt"
+        );
+
+        this.load.audio("gameAudio", "assets/audio/gameAudio.mp3");
+        this.load.audio("gameoverSound", "assets/audio/gameoverSound.mp3");
+      }
+
+      // ----- Function to create the scene
+      function create() {
+        this.add.image(0, 0, "sky").setOrigin(0, 0);
+
+        this.add.image(10, 0, "neonSign").setOrigin(0, 0);
+
+        // ----- Adding the audio and playing it -----
+        music = this.sound.add("gameAudio", configAudio);
+        soundGameOver = this.sound.add("gameoverSound", configAudioGameOver);
+        music.play();
+
+        // ----- Score Text -----
+        this.add.bitmapText(320, 45, "fontNumbers", "Score", 35).depth = 10;
+        text = this.add.bitmapText(345, 75, "fontNumbers", scoreText, 35);
+        text.depth = 10;
+
+        // ----- Creates the static platform -----
+        platform = this.physics.add.staticGroup();
+        platform
+          .create(60, 600, "platform")
+          .setScale(2)
+          .refreshBody();
+
+        // ----- Create the groups -----
+        elephants = this.physics.add.group();
+        pandas = this.physics.add.group();
+        girafes = this.physics.add.group();
+        chickens = this.physics.add.group();
+        foxes = this.physics.add.group();
+        crocodiles = this.physics.add.group();
+        deers = this.physics.add.group();
+
+        // ----- Set the first next animal and the first animal -----
+        randomAnimalNumber = Phaser.Math.Between(0, 1);
+        nextRandomAnimalNumber = Phaser.Math.Between(0, 1);
+        setNextAnimal(this);
+
+        // ----- Check which animal has to spawn -----
+        switch (randomAnimalNumber) {
+          case 0:
+            player = createGroupElephants(this);
+            break;
+          case 1:
+            player = createGroupPandas(this);
+            break;
+          case 2:
+            player = createGroupGirafes(this);
+            break;
+          case 3:
+            player = createGroupChickens(this);
+            break;
+          case 4:
+            player = createGroupFoxes(this);
+            break;
+          case 5:
+            player = createGroupCrocodiles(this);
+            break;
+          case 6:
+            player = createGroupDeers(this);
+            break;
+          default:
+            break;
+        }
+
+        // ----- Texts for the pause -----
+        textPausedFirstLine = this.add.bitmapText(
+          160,
+          260,
+          "fontZig",
+          `Paused`,
+          28
+        );
+        textPausedSecondLine = this.add.bitmapText(
+          34,
+          320,
+          "fontZig",
+          `Press P to resume`,
+          28
+        );
+        textPausedFirstLine.depth = 10;
+        textPausedSecondLine.depth = 10;
+        textPausedFirstLine.visible = false;
+        textPausedSecondLine.visible = false;
+
+        // ----- Functions that will set the collisions between all the groups and the platform
+        setGeneralCollisions(this);
+        setElephantCollision(this);
+        setPandasCollision(this);
+        setGirafesCollision(this);
+        setChickensCollision(this);
+        setFoxesCollision(this);
+        setCrocodilesCollision(this);
+        setDeersCollision(this);
+
+        // ----- Input -----
+        cursors = this.input.keyboard.createCursorKeys();
+      }
+
+      // ----- Controls -----
+      function update() {
+        if (cursors.left.isDown) {
+          player.x -= 4;
+        } else if (cursors.right.isDown) {
+          player.x += 4;
+        }
+        if (cursors.up.isDown && playerRotation) {
+          player.angle += 90;
+          playerRotation = false;
+        } else if (cursors.up.isUp) {
+          playerRotation = true;
+        }
+        if (cursors.down.isDown) {
+          acceleration += 0.05;
+          player.y += acceleration;
+        } else if (cursors.down.isUp) {
+          acceleration = 0;
+        }
+      }
+
+      // ----- Function to generate a new animal -----
+      function newAnimal(playerP, entity, thisP, calledFrom) {
+        // ----- Checks if the player has lost -----
+        if (playerP.y <= 5) {
+          music.stop();
+          game.scene.sleep();
+          game.scene.start(sceneGameOver, scoreText);
+          soundGameOver.play();
+        } else if (playerP.y > 5) {
+          if (playerP && entity) {
+            var b1 = playerP.body;
+            var b2 = entity.body;
+            if (b1.y > b2.y) {
+              b2.y += b1.top - b2.bottom;
+              b2.stop();
+            } else {
+              b1.y += b2.top - b1.bottom;
+              b1.stop();
+            }
+          }
+          if (
+            player.body.blocked.down ||
+            player.body.touching.down ||
+            calledFrom == "checkAnimal"
+          ) {
+            acceleration = 0;
+            // ----- If function is called by function "checkAnimal()" -----
+            if (calledFrom !== "checkAnimal") {
+              randomAnimalNumber = nextRandomAnimalNumber;
+              nextRandomAnimalNumber = Phaser.Math.Between(0, 6);
+              setNextAnimal(this);
+            }
+
+            // ----- Generate an animal randomly -----
+            switch (randomAnimalNumber) {
+              case 0:
+                //console.log("ciao1");
+                player = createGroupElephants();
+                break;
+              case 1:
+                //console.log("ciao2");
+                player = createGroupPandas();
+                break;
+              case 2:
+                player = createGroupGirafes();
+                break;
+              case 3:
+                player = createGroupChickens();
+                break;
+              case 4:
+                player = createGroupFoxes();
+                break;
+              case 5:
+                player = createGroupCrocodiles();
+                break;
+              case 6:
+                player = createGroupDeers();
+                break;
+              default:
+                break;
+            }
+          }
+        }
+      }
+
+      // ----- Update the score and make the animals disappear if they are of the same type -----
+      function checkAnimal(playerP, animal) {
+        scoreText += 10;
+
+        // Accelerates every three couples
+        if (scoreText % 30 == 0) {
+          this.physics.world.gravity.y += 100;
+        }
+
+        text.setText(scoreText);
+        let posPlayerP = playerP;
+        let posAnimal = animal;
+        playerP.disableBody(true, true);
+        animal.disableBody(true, true);
+        randomAnimalNumber = nextRandomAnimalNumber;
+        nextRandomAnimalNumber = Phaser.Math.Between(0, 6);
+        calledFrom = "checkAnimal";
+        setNextAnimal(this);
+
+        newAnimal(posPlayerP, posAnimal, this, calledFrom);
+      }
+
+      // ----- Function to set and show the next animal that will be generated -----
+      function setNextAnimal(thisP) {
+        if (imageNextRandomAnimal) {
+          imageNextRandomAnimal.destroy();
+        }
+        switch (nextRandomAnimalNumber) {
+          case 0:
+            imageNextRandomAnimal = thisP.add
+              .image(50, 60, "animals", "animal_elephant.png")
+              .setOrigin(0, 0);
+            break;
+          case 1:
+            imageNextRandomAnimal = thisP.add
+              .image(60, 50, "animals", "animal_panda.png")
+              .setOrigin(0, 0);
+            break;
+          case 2:
+            imageNextRandomAnimal = thisP.add
+              .image(60, 40, "animals", "animal_girafe.png")
+              .setOrigin(0, 0);
+            break;
+          case 3:
+            imageNextRandomAnimal = thisP.add
+              .image(60, 70, "animals", "animal_chicken.png")
+              .setOrigin(0, 0);
+            break;
+          case 4:
+            imageNextRandomAnimal = thisP.add
+              .image(50, 60, "animals", "animal_fox.png")
+              .setOrigin(0, 0);
+            break;
+          case 5:
+            imageNextRandomAnimal = thisP.add
+              .image(50, 70, "animals", "animal_crocodile.png")
+              .setOrigin(0, 0);
+            break;
+          case 6:
+            imageNextRandomAnimal = thisP.add
+              .image(50, 60, "animals", "animal_deer.png")
+              .setOrigin(0, 0);
+            break;
+          default:
+            break;
+        }
+      }
+
+      // ----- Functions to create the various groups -----
+      function createGroupElephants() {
+        var elephant = elephants.create(
+          215,
+          5,
+          "animals",
+          "animal_elephant.png"
+        );
+        elephant.setBounce(0.02);
+        elephant.setCollideWorldBounds(true);
+        return elephant;
+      }
+
+      function createGroupPandas() {
+        var panda = pandas.create(215, 5, "animals", "animal_panda.png");
+        panda.setBounce(0.02);
+        panda.setCollideWorldBounds(true);
+        return panda;
+      }
+
+      function createGroupGirafes() {
+        var girafe = girafes.create(215, 0, "animals", "animal_girafe.png");
+        girafe.setBounce(0.02);
+        girafe.setCollideWorldBounds(true);
+        return girafe;
+      }
+
+      function createGroupChickens() {
+        var chicken = chickens.create(215, 0, "animals", "animal_chicken.png");
+        chicken.setBounce(0.02);
+        chicken.setCollideWorldBounds(true);
+        return chicken;
+      }
+
+      function createGroupFoxes() {
+        var fox = foxes.create(215, 0, "animals", "animal_fox.png");
+        fox.setBounce(0.02);
+        fox.setCollideWorldBounds(true);
+        return fox;
+      }
+
+      function createGroupCrocodiles() {
+        var crocodile = crocodiles.create(
+          215,
+          0,
+          "animals",
+          "animal_crocodile.png"
+        );
+        crocodile.setBounce(0.02);
+        crocodile.setCollideWorldBounds(true);
+        return crocodile;
+      }
+
+      function createGroupDeers() {
+        var deer = deers.create(215, 0, "animals", "animal_deer.png");
+        deer.setBounce(0.02);
+        deer.setCollideWorldBounds(true);
+        return deer;
+      }
+
+      // ------- Functions to set the collisions between animals and animals / animals and platform -------
+      function setGeneralCollisions(thisP) {
+        thisP.physics.add.collider(player, platform, newAnimal, null, thisP);
+        thisP.physics.add.collider(elephants, platform, newAnimal, null, thisP);
+        thisP.physics.add.collider(pandas, platform, newAnimal, null, thisP);
+        thisP.physics.add.collider(girafes, platform, newAnimal, null, thisP);
+        thisP.physics.add.collider(chickens, platform, newAnimal, null, thisP);
+        thisP.physics.add.collider(foxes, platform, newAnimal, null, thisP);
+        thisP.physics.add.collider(
+          crocodiles,
+          platform,
+          newAnimal,
+          null,
+          thisP
+        );
+        thisP.physics.add.collider(deers, platform, newAnimal, null, thisP);
+      }
+
+      function setElephantCollision(thisP) {
+        thisP.physics.add.collider(
+          elephants,
+          elephants,
+          checkAnimal,
+          null,
+          thisP
+        );
+        thisP.physics.add.collider(elephants, pandas, newAnimal, null, thisP);
+        thisP.physics.add.collider(elephants, girafes, newAnimal, null, thisP);
+        thisP.physics.add.collider(elephants, chickens, newAnimal, null, thisP);
+        thisP.physics.add.collider(elephants, foxes, newAnimal, null, thisP);
+        thisP.physics.add.collider(
+          elephants,
+          crocodiles,
+          newAnimal,
+          null,
+          thisP
+        );
+        thisP.physics.add.collider(elephants, deers, newAnimal, null, thisP);
+      }
+
+      function setPandasCollision(thisP) {
+        thisP.physics.add.collider(pandas, pandas, checkAnimal, null, thisP);
+        thisP.physics.add.collider(pandas, elephants, newAnimal, null, thisP);
+        thisP.physics.add.collider(pandas, girafes, newAnimal, null, thisP);
+        thisP.physics.add.collider(pandas, chickens, newAnimal, null, thisP);
+        thisP.physics.add.collider(pandas, foxes, newAnimal, null, thisP);
+        thisP.physics.add.collider(pandas, crocodiles, newAnimal, null, thisP);
+        thisP.physics.add.collider(pandas, deers, newAnimal, null, thisP);
+      }
+
+      function setGirafesCollision(thisP) {
+        thisP.physics.add.collider(girafes, girafes, checkAnimal, null, thisP);
+        thisP.physics.add.collider(girafes, pandas, newAnimal, null, thisP);
+        thisP.physics.add.collider(girafes, elephants, newAnimal, null, thisP);
+        thisP.physics.add.collider(girafes, chickens, newAnimal, null, thisP);
+        thisP.physics.add.collider(girafes, foxes, newAnimal, null, thisP);
+        thisP.physics.add.collider(girafes, crocodiles, newAnimal, null, thisP);
+        thisP.physics.add.collider(girafes, deers, newAnimal, null, thisP);
+      }
+
+      function setChickensCollision(thisP) {
+        thisP.physics.add.collider(
+          chickens,
+          chickens,
+          checkAnimal,
+          null,
+          thisP
+        );
+        thisP.physics.add.collider(chickens, pandas, newAnimal, null, thisP);
+        thisP.physics.add.collider(chickens, girafes, newAnimal, null, thisP);
+        thisP.physics.add.collider(chickens, elephants, newAnimal, null, thisP);
+        thisP.physics.add.collider(chickens, foxes, newAnimal, null, thisP);
+        thisP.physics.add.collider(
+          chickens,
+          crocodiles,
+          newAnimal,
+          null,
+          thisP
+        );
+        thisP.physics.add.collider(chickens, deers, newAnimal, null, thisP);
+      }
+
+      function setFoxesCollision(thisP) {
+        thisP.physics.add.collider(foxes, foxes, checkAnimal, null, thisP);
+        thisP.physics.add.collider(foxes, pandas, newAnimal, null, thisP);
+        thisP.physics.add.collider(foxes, girafes, newAnimal, null, thisP);
+        thisP.physics.add.collider(foxes, chickens, newAnimal, null, thisP);
+        thisP.physics.add.collider(foxes, elephants, newAnimal, null, thisP);
+        thisP.physics.add.collider(foxes, crocodiles, newAnimal, null, thisP);
+        thisP.physics.add.collider(foxes, deers, newAnimal, null, thisP);
+      }
+
+      function setCrocodilesCollision(thisP) {
+        thisP.physics.add.collider(
+          crocodiles,
+          crocodiles,
+          checkAnimal,
+          null,
+          thisP
+        );
+        thisP.physics.add.collider(crocodiles, pandas, newAnimal, null, thisP);
+        thisP.physics.add.collider(crocodiles, girafes, newAnimal, null, thisP);
+        thisP.physics.add.collider(
+          crocodiles,
+          chickens,
+          newAnimal,
+          null,
+          thisP
+        );
+        thisP.physics.add.collider(crocodiles, foxes, newAnimal, null, thisP);
+        thisP.physics.add.collider(
+          crocodiles,
+          elephants,
+          newAnimal,
+          null,
+          thisP
+        );
+        thisP.physics.add.collider(crocodiles, deers, newAnimal, null, thisP);
+      }
+
+      function setDeersCollision(thisP) {
+        thisP.physics.add.collider(deers, deers, checkAnimal, null, thisP);
+        thisP.physics.add.collider(deers, pandas, newAnimal, null, thisP);
+        thisP.physics.add.collider(deers, girafes, newAnimal, null, thisP);
+        thisP.physics.add.collider(deers, chickens, newAnimal, null, thisP);
+        thisP.physics.add.collider(deers, foxes, newAnimal, null, thisP);
+        thisP.physics.add.collider(deers, crocodiles, newAnimal, null, thisP);
+        thisP.physics.add.collider(deers, elephants, newAnimal, null, thisP);
+      }
+
+      // ----- Check if game is paused and resumes/pauses it -----
+      window.onkeydown = function(event) {
+        if (event.keyCode == 80) {
+          if (gamePaused) {
+            game.scene.resume("gameScene");
+            music.resume();
+            textPausedFirstLine.visible = false;
+            textPausedSecondLine.visible = false;
+            gamePaused = false;
+          } else {
+            game.scene.pause("gameScene");
+            music.pause();
+            textPausedFirstLine.visible = true;
+            textPausedSecondLine.visible = true;
+            gamePaused = true;
+          }
+        }
+      };
+    </script>
+  </body>
+</html>
