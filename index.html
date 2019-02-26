@@ -292,6 +292,9 @@
               b1.stop();
             }
           }
+          if (calledFrom == "checkAnimal") {
+            console.log(player);
+          }
           if (
             player.body.blocked.down ||
             player.body.touching.down ||
@@ -351,12 +354,16 @@
         let posAnimal = animal;
         playerP.disableBody(true, true);
         animal.disableBody(true, true);
-        randomAnimalNumber = nextRandomAnimalNumber;
-        nextRandomAnimalNumber = Phaser.Math.Between(0, 6);
-        calledFrom = "checkAnimal";
-        setNextAnimal(this);
 
-        newAnimal(posPlayerP, posAnimal, this, calledFrom);
+        // To avoid having two calls
+        if (player.y > 100) {
+          randomAnimalNumber = nextRandomAnimalNumber;
+          nextRandomAnimalNumber = Phaser.Math.Between(0, 6);
+          calledFrom = "checkAnimal";
+          setNextAnimal(this);
+
+          newAnimal(posPlayerP, posAnimal, this, calledFrom);
+        }
       }
 
       // ----- Function to set and show the next animal that will be generated -----
